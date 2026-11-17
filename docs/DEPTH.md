@@ -13,7 +13,7 @@
 | M3 数量勾稽 | 统一包装单位并核对未到量 | POST /api/quantity/match | `app/modules/m3_quantity/units.py` `app/modules/m3_quantity/match.py` | `tests/test_m3_quantity.py` |
 | M4 税额核验 | 重算净额、税额与含税额 | POST /api/tax/check | `app/modules/m4_tax/calculate.py` `app/modules/m4_tax/verify.py` | `tests/test_m4_tax.py` |
 | M5 多对多匹配 | 在相同货号税率内组合匹配 | POST /api/matches/solve | `app/modules/m5_matching/candidates.py` `app/modules/m5_matching/solver.py` | `tests/test_m5_matching.py` |
-| M6 差异批次 | 核对金额守恒并导出差异 | POST /api/reconcile | `app/modules/m6_batches/compare.py` `app/modules/m6_batches/exporter.py` | `tests/test_m6_batches.py` |
+| M6 差异批次 | 按订单/验收/税额版本开批，核对、隔离并导出差异 | POST /api/reconcile | `app/modules/m6_batches/versions.py` `app/modules/m6_batches/engine.py` `app/modules/m6_batches/exporter.py` | `tests/test_m6_batches.py` `tests/test_m7_versions.py` |
 
 ## 陷阱登记
 
@@ -29,6 +29,11 @@
 | TRAP-19 | 组合候选顺序变化 | 匹配结果随输入顺序变化 | 按差额、数量与编号稳定择一 | `app/modules/m5_matching/solver.py` | `tests/test_m5_matching.py::test_choice_is_order_independent` |
 | TRAP-23 | 相邻税率边界 | 不同税率金额互相抵消 | 货号与税率共同分组 | `app/modules/m4_tax/verify.py` | `tests/test_m4_tax.py::test_different_tax_rates_never_offset` |
 | TRAP-26 | 同批重复执行 | 重复新增对账结果 | 输入摘要作为运行唯一键 | `app/store.py` | `tests/test_m6_batches.py::test_idempotent_record` |
+| TRAP-31 | 订单变更后重算 | 直接重算改写旧发票凭据 | 批次绑定开立时的订单/验收/税额版本，旧登记按登记时口径复核 | `app/modules/m6_batches/engine.py` `app/modules/m6_batches/versions.py` | `tests/test_m7_versions.py::test_registered_evidence_survives_order_revision` |
+| TRAP-32 | 订单修订失败 | 旧版本被覆盖，无法回退 | 修订先写入新版本与新批次，处理完成后原子切换；失败保留旧头与旧批次 | `app/modules/m6_batches/engine.py` | `tests/test_m7_versions.py::test_failed_revision_keeps_old_head` |
+| TRAP-33 | 新发票沿用旧口径 | 放过数量/金额冲突 | 新发票按最新版本勾稽，冲突进入隔离且不改已通过记录 | `app/modules/m6_batches/engine.py` | `tests/test_m7_versions.py::test_new_invoice_conflict_is_quarantined` |
+| TRAP-34 | 批次写入中断 | 半批入账或重复入账 | checkpoint 断点续跑，台账主键去重，重试不重复入账 | `app/modules/m6_batches/engine.py` `app/store.py` | `tests/test_m7_versions.py::test_interrupted_batch_resumes_without_double_posting` |
+| TRAP-35 | 导出不区分版本 | 混入历史批次差异 | 导出只带指定批次，页面显示当前与历史差异 | `app/modules/m6_batches/engine.py` `app/modules/m6_batches/handler.py` | `tests/test_m7_versions.py::test_export_only_selected_version` |
 
 ## 对账规则
 
@@ -39,4 +44,5 @@
 ## 已知不覆盖
 
 - 不处理外币汇兑，样例与输出均为人民币。
+- 不处理付款、供应商别名维护与撤销；批次一旦提交不做撤销，只以新批次表达后续修订。
 

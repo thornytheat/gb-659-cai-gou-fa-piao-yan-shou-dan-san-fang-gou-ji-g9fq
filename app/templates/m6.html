@@ -1,27 +1,35 @@
 {% extends "base.html" %}
 {% block content %}
 <section class="kpis">
-  <div class="kpi"><b>差异项</b><strong>2</strong><small>条</small></div>
-  <div class="kpi"><b>通过</b><strong>0</strong><small>条</small></div>
-  <div class="kpi"><b>隔离</b><strong>3</strong><small>条</small></div>
+  <div class="kpi"><b>当前批次</b><strong>{{ listing.current or "—" }}</strong><small>id</small></div>
+  <div class="kpi"><b>历史批次</b><strong>{{ listing.batches | length }}</strong><small>个</small></div>
+  <div class="kpi"><b>差异项</b><strong>{{ diff.counts.differences_added if diff else 0 }}</strong><small>新增</small></div>
   <div class="kpi"><b>规则版</b><strong>1.6</strong><small>v</small></div>
 </section>
 <div class="grid grid--quad">
   <section class="panel">
-    <div class="panel__head"><h2>差异批次</h2><span class="state state--ok">通过</span></div>
+    <div class="panel__head"><h2>批次版本</h2><span class="state state--ok">只读</span></div>
     <div class="panel__body panel__body--scroll">
-      <table class="ledger"><thead><tr><th>序号</th><th>业务键</th><th>状态</th><th class="num">值</th></tr></thead>
-      <tbody>{% for row in rows %}<tr><td class="num">{{ loop.index }}</td><td>{{ row.key }}</td><td>{{ row.status }}</td><td class="num">{{ row.value }}</td></tr>{% endfor %}</tbody></table>
+      <table class="ledger"><thead><tr><th>批次</th><th>状态</th><th>订单</th><th>验收</th><th>税额</th><th class="num">已入账</th></tr></thead>
+      <tbody>{% for row in listing.batches %}<tr{% if row.current %} class="is-active"{% endif %}><td>{{ row.batch_id }}</td><td>{{ "当前" if row.current else row.status }}</td><td>{{ row.versions.order }}</td><td>{{ row.versions.acceptance }}</td><td>{{ row.versions.tax }}</td><td class="num">{{ row.posted }}</td></tr>{% endfor %}</tbody></table>
+    </div>
+  </section>
+  <section class="panel">
+    <div class="panel__head"><h2>当前与历史差异</h2><span class="panel__meta">{{ (diff.counts.differences_added + diff.counts.differences_removed + diff.counts.differences_changed) if diff else 0 }} 条</span></div>
+    <div class="panel__body panel__body--scroll">
+      {% if diff %}
+      <table class="ledger"><thead><tr><th>变化</th><th>业务键</th><th>原因</th><th class="num">金额</th></tr></thead>
+      <tbody>
+        {% for row in diff.differences.added %}<tr><td>新增</td><td>{{ row.business_key }}</td><td>{{ row.reason_code }}</td><td class="num">{{ row.amount_cny }}</td></tr>{% endfor %}
+        {% for row in diff.differences.removed %}<tr><td>消失</td><td>{{ row.business_key }}</td><td>{{ row.reason_code }}</td><td class="num">{{ row.amount_cny }}</td></tr>{% endfor %}
+        {% for row in diff.differences.changed %}<tr><td>变化</td><td>{{ row.key[0] }}</td><td>{{ row.key[2] }}</td><td class="num">{{ row.fields.amount_cny.to if row.fields.amount_cny else "—" }}</td></tr>{% endfor %}
+      </tbody></table>
+      {% else %}<pre id="result">尚无两个已提交批次可比较</pre>{% endif %}
     </div>
   </section>
   <section class="panel panel--evidence">
-    <div class="panel__head"><h2>证据</h2><span class="panel__meta">7 条</span></div>
-    <div class="panel__body"><div class="evidence"><b>RUN-659-6</b><span>LINE 7</span><code>/api/reconcile</code></div><pre id="result">等待运行</pre></div>
-  </section>
-  <section class="panel panel--status">
-    <div class="panel__head"><h2>原因分布</h2><span class="panel__meta">3 类</span></div>
-    <div class="panel__body"><div class="bar"><i style="width:85%"></i></div><div class="legend"><span>采纳 2</span><span>隔离 3</span></div></div>
+    <div class="panel__head"><h2>证据</h2><span class="panel__meta">按版本导出</span></div>
+    <div class="panel__body"><div class="evidence"><b>{{ listing.current or "NO BATCH" }}</b><span>PINNED VERSIONS</span><code>/api/reconcile</code></div><pre id="result">等待运行</pre></div>
   </section>
 </div>
 {% endblock %}
-
